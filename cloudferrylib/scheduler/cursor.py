@@ -65,3 +65,8 @@ class Cursor(object):
         self.net = obj
         self.next_iter = None
         return obj
+
+    def fast_forward_to(self, position):
+        for _ in xrange(position):
+            self.next()
+        return self

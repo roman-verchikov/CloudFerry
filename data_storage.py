@@ -23,14 +23,17 @@ from cfglib import CONF
 CONNECTION = [None]
 
 
+def get_connection():
+    if not CONNECTION[0]:
+        import redis
+        CONNECTION[0] = redis.StrictRedis(host=CONF.database.host,
+                                          port=CONF.database.port)
+    return CONNECTION[0]
+
+
 def redis_socket_to_kwargs(function):
     def wrapper(*args, **kwargs):
-        if not CONNECTION[0]:
-            import redis
-            CONNECTION[0] = redis.StrictRedis(
-                host=CONF.database.host,
-                port=CONF.database.port)
-        return function(*args, connection=CONNECTION[0], **kwargs)
+        return function(*args, connection=get_connection(), **kwargs)
     return wrapper
 
 

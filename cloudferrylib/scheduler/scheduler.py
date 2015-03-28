@@ -13,14 +13,16 @@
 # limitations under the License.
 
 
+import importlib
 import multiprocessing
-import traceback
 
 from cloudferrylib.scheduler.namespace import Namespace, CHILDREN
+from cloudferrylib.scheduler import state
 from cloudferrylib.utils import utils
 from cursor import Cursor
 from task import BaseTask
 from thread_tasks import WrapThreadTask
+import cfglib
 
 
 LOG = utils.get_log(__name__)
@@ -33,6 +35,7 @@ ERROR = 255
 class BaseScheduler(object):
     def __init__(self, namespace=None, migration=None, preparation=None,
                  rollback=None):
+        super(BaseScheduler, self).__init__()
         self.namespace = namespace if namespace else Namespace()
         self.status_error = NO_ERROR
         self.migration = migration
@@ -160,3 +163,49 @@ class SchedulerThread(BaseScheduler):
 
 class Scheduler(SchedulerThread):
     pass
+
+
+class StateAwareScheduler(Scheduler, state.SignalHandler):
+    def __init__(self, redis=None, **kwargs):
+        super(StateAwareScheduler, self).__init__(**kwargs)
+        task_observer = state.TaskStateObserver(redis)
+        task_observer.db.build_schedule(kwargs['migration'])
+        self.db = task_observer.db
+        self.add_observer(task_observer)
+
+    def event_start_task(self, task):
+        super(StateAwareScheduler, self).event_start_task(task)
+
+        if self.db.already_started(task):
+            return False
+        self.notify_observers(task, state.TASK_STARTED)
+        return True
+
+    def event_end_task(self, task):
+        super(StateAwareScheduler, self).event_end_task(task)
+        if self.db.already_started(task):
+            return False
+        self.notify_observers(task, state.TASK_SUCCEEDED)
+        return True
+
+    def error_task(self, task, error):
+        super(StateAwareScheduler, self).error_task(task, error)
+        self.notify_observers(task, state.TASK_FAILED)
+        return True
+
+
+def _get_scheduler(**kwargs):
+    try:
+        module, _, cls = cfglib.CONF.migrate.scheduler.rpartition('.')
+        mod = importlib.import_module(module)
+        return mod.__dict__[cls](**kwargs)
+    except cfglib.cfg.NoSuchOptError as e:
+        LOG.error("Expected option is not found in config: %s", e)
+        raise
+    except ImportError as e:
+        LOG.error("Cannot import scheduler class specified in config: %s. "
+                  "Program execution will be aborted", e)
+        raise
+
+
+configured_scheduler = _get_scheduler

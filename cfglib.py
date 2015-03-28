@@ -113,6 +113,9 @@ migrate_opts = [
                 help="Migrate all VM's from all tenants. User, specified in "
                      "the 'dst' section of config also should have admin role "
                      "in all tenants."),
+    cfg.StrOpt('scheduler',
+               default='cloudferrylib.scheduler.scheduler.Scheduler',
+               help='Scheduler class used to do migration')
 ]
 
 mail = cfg.OptGroup(name='mail',

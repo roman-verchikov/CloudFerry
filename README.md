@@ -56,13 +56,66 @@ to implement in nearest future.
 
 ## Usage
 
+### Migration
 
-fab migrate:configs/config_iscsi_to_iscsi.yaml - to start process of migration:
-        migrate - command for tool “to start migration process”
-        configs/config_iscsi_to_iscsi.yaml - path to config file
-fab migrate:configs/config_iscsi_to_iscsi.yaml,name_instance=<name_instance> - to start migration process of one given
-instance with the name <name_instance>
+#### Scenario-based
 
+Following command starts migration process:
+```
+fab migrate:configs/config_iscsi_to_iscsi.yaml
+```
+Arguments:
+ - `migrate`: migration process start command;
+ - `configs/config_iscsi_to_iscsi.yaml`: path to config file
 
-Config description
-(see file config_description.txt)
+#### Single VM
+Starts migration of a given instance `<instance_name>`
+```
+fab migrate:configs/config_iscsi_to_iscsi.yaml,name_instance=<instance_name>
+```
+
+### State
+
+#### Overview
+CloudFerry supports different kinds of internal scheduler: stateless and 
+state-aware. These can be chosen through modifying configuration:
+```
+[migrate]
+# default scheduler is stateless:
+scheduler = 'cloudferrylib.scheduler.scheduler.Scheduler'
+
+# to choose stateful scheduler:
+scheduler = "cloudferrylib.scheduler.scheduler.StateAwareScheduler"
+```
+
+State is stored in Redis DB, which requires that user has redis server running
+at `<config.database.host>`:`<config.database.port>`.
+
+State-aware scheduler:
+  - Scans provided scenario for tasks to be executed;
+  - Tracks execution state of each task;
+  - Allows user to 'rewind' or 'fast-forward' to a particular task from scenario
+
+#### Usage
+
+ - All state-related commands start with 'state\_' prefix;
+ - Show state of tasks in current scenario:
+   ```
+   fab state_show_history[:config]
+   ```
+ - Show currently executed task:
+   ```
+   fab state_show_current[:config]
+   ```
+ - Reset current task to any other:
+   ```
+   fab state_restart_from_task:<task_id>[:config]
+   ```
+ - Remove all state information:
+   ```
+   fab state_cleanup[:config]
+   ```
+
+## Config description
+
+TODO

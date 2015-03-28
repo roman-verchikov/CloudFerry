@@ -25,8 +25,13 @@ import cloudferrylib
 from cloudferrylib.base.action import action
 
 
+DEFAULT_SCENARIO = 'scenario/migrate.yaml'
+DEFAULT_TAKSKS = 'scenario/tasks.yaml'
+
+
 class Scenario(object):
-    def __init__(self, path_tasks='scenario/tasks.yaml', path_scenario='scenario/migrate.yaml'):
+    def __init__(self, path_tasks=DEFAULT_TAKSKS,
+                 path_scenario=DEFAULT_SCENARIO):
         self.path_tasks = path_tasks
         self.path_scenario = path_scenario
 
