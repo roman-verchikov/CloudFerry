@@ -13,15 +13,15 @@
 # limitations under the License.
 
 from fabric.api import task, env
-from cloudferrylib.scheduler.namespace import Namespace
-from cloudferrylib.scheduler.scheduler import Scheduler
-import cfglib
-from cloudferrylib.utils import utils as utl
-from cloudferrylib.utils import utils
-from cloudferrylib.scheduler.scenario import Scenario
-from cloud import cloud_ferry
-from cloud import grouping
-from dry_run import chain
+from cloudferry.lib.scheduler.namespace import Namespace
+from cloudferry.lib.scheduler.scheduler import Scheduler
+from cloudferry import cfglib
+from cloudferry.lib.utils import utils as utl
+from cloudferry.lib.utils import utils
+from cloudferry.lib.scheduler.scenario import Scenario
+from cloudferry.cloud import cloud_ferry
+from cloudferry.cloud import grouping
+from cloudferry.dry_run import chain
 env.forward_agent = True
 env.user = 'root'
 LOG = utl.get_log(__name__)
