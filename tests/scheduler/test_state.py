@@ -43,13 +43,26 @@ class SucceedingTask(Task):
 
 
 class FailingTask(Task):
-    is_fixed_key = 'failing_task_fixed'
+    def __init__(self, fixed=False, restart_callback=lambda: None):
+        super(FailingTask, self).__init__(restart_callback)
+        self.fixed = fixed
 
     def run(self, **kwargs):
-        fixed = kwargs.get(self.is_fixed_key, False)
-        if not fixed:
+        if not self.fixed:
             raise Exception()
         super(FailingTask, self).run(**kwargs)
+
+
+class NamespaceModifyingSucceedingTask(SucceedingTask):
+    def run(self, modifiable, **kwargs):
+        super(NamespaceModifyingSucceedingTask, self).run(**kwargs)
+        return {'modifiable': modifiable + 1}
+
+
+class NamespaceModifyingFailingTask(FailingTask):
+    def run(self, modifiable, **kwargs):
+        super(NamespaceModifyingFailingTask, self).run(**kwargs)
+        return {'modifiable': modifiable + 1}
 
 
 class TaskStateTestCase(test.TestCase):
@@ -79,7 +92,7 @@ class StateAwareSchedulerTestCase(test.TestCase):
 
         t1 = SucceedingTask(pre_fail_task)
         t2 = SucceedingTask(pre_fail_task)
-        t3 = FailingTask(post_fail_task)
+        t3 = FailingTask(restart_callback=post_fail_task)
         t4 = SucceedingTask(post_fail_task)
         scenario = (t1 >> t2 >> t3 >> t4)
 
@@ -101,13 +114,11 @@ class StateAwareSchedulerTestCase(test.TestCase):
 
         t1 = SucceedingTask(pre_fail_task)
         t2 = SucceedingTask(pre_fail_task)
-        t3 = FailingTask(post_fail_task)
+        t3 = FailingTask(restart_callback=post_fail_task, fixed=True)
         t4 = SucceedingTask(post_fail_task)
         scenario = (t1 >> t2 >> t3 >> t4)
 
-        ns = namespace.Namespace({FailingTask.is_fixed_key: True})
         s = scheduler.StateAwareScheduler(redis=self.redis,
-                                          namespace=ns,
                                           migration=cursor.Cursor(scenario))
         s.start()
 
@@ -134,7 +145,8 @@ class StateAwareSchedulerTestCase(test.TestCase):
     def test_history_is_stored_in_execution_order(self):
         num_tasks = 10
         all_tasks = [SucceedingTask() for _ in xrange(num_tasks)]
-        expected_history = [state.task_data(t, i)
+        expected_history = [state.TaskState.from_dict({'name': str(t),
+                                                       'id': i})
                             for i, t in enumerate(all_tasks)]
         scenario = all_tasks[0]
         for t in all_tasks[1:]:
@@ -226,6 +238,90 @@ class StateAwareSchedulerTestCase(test.TestCase):
         not_empty = lambda h: len(history) != 0
         self.assertTrue(not_empty(history))
 
+    def test_scenario_restarts_from_failed_task_with_correct_namespace(self):
+        post_fail_task = mock.Mock()
+        pre_fail_task = mock.Mock()
+
+        t1 = NamespaceModifyingSucceedingTask(pre_fail_task)
+        t2 = NamespaceModifyingSucceedingTask(pre_fail_task)
+        t3 = NamespaceModifyingFailingTask(restart_callback=post_fail_task)
+        t4 = NamespaceModifyingSucceedingTask(post_fail_task)
+        scenario = (t1 >> t2 >> t3 >> t4)
+
+        ns = namespace.Namespace({'modifiable': 0})
+        s = scheduler.StateAwareScheduler(redis=self.redis,
+                                          namespace=ns,
+                                          migration=cursor.Cursor(scenario))
+        s.start()
+
+        self.assertTrue(t1.was_run)
+        self.assertTrue(t2.was_run)
+        self.assertFalse(t3.was_run)
+        self.assertFalse(t4.was_run)
+
+        self.assertEqual(s.status_error, scheduler.ERROR)
+        self.assertTrue(pre_fail_task.called)
+        self.assertFalse(post_fail_task.called)
+        self.assertEqual(s.namespace.vars['modifiable'], 2)
+
+        post_fail_task = mock.Mock()
+        pre_fail_task = mock.Mock()
+
+        t1 = NamespaceModifyingSucceedingTask(pre_fail_task)
+        t2 = NamespaceModifyingSucceedingTask(pre_fail_task)
+        t3 = NamespaceModifyingFailingTask(restart_callback=post_fail_task,
+                                           fixed=True)
+        t4 = NamespaceModifyingSucceedingTask(post_fail_task)
+        scenario = (t1 >> t2 >> t3 >> t4)
+
+        ns = namespace.Namespace({'modifiable': 0})
+        s = scheduler.StateAwareScheduler(redis=self.redis,
+                                          namespace=ns,
+                                          migration=cursor.Cursor(scenario))
+        s.start()
+
+        self.assertFalse(t1.was_run)
+        self.assertFalse(t2.was_run)
+        self.assertTrue(t3.was_run)
+        self.assertTrue(t4.was_run)
+
+        self.assertNotEqual(s.status_error, scheduler.ERROR)
+        self.assertTrue(post_fail_task.called)
+        self.assertFalse(pre_fail_task.called)
+        self.assertEqual(s.namespace.vars['modifiable'], 4)
+
+    def test_preparation_tasks_are_not_stored(self):
+        num_tasks = 5
+        preparation = self._generate_scenario(num_tasks)
+        migration = self._generate_scenario(num_tasks)
+        s = scheduler.StateAwareScheduler(
+            redis=self.redis,
+            preparation=cursor.Cursor(preparation),
+            migration=cursor.Cursor(migration))
+
+        s.start()
+
+        history = s.db.get_history()
+
+        self.assertEqual(len(history), num_tasks)
+
+    def test_rollback_tasks_are_not_stored(self):
+        num_tasks = 5
+        rollback = self._generate_scenario(num_tasks)
+        migration = self._generate_scenario(num_tasks - 1)
+        # Make sure one of the tasks fails, so that rollback is executed at
+        # least once
+        migration >> FailingTask()
+        s = scheduler.StateAwareScheduler(redis=self.redis,
+                                          rollback=cursor.Cursor(rollback),
+                                          migration=cursor.Cursor(migration))
+
+        s.start()
+
+        history = s.db.get_history()
+
+        self.assertEqual(len(history), num_tasks)
+
     @staticmethod
     def _scenario_with_ids_returned(num_tasks):
         scenario = SucceedingTask()
@@ -235,10 +331,10 @@ class StateAwareSchedulerTestCase(test.TestCase):
         return scenario, [i for i in xrange(num_tasks)]
 
     @staticmethod
-    def _generate_scenario(num_tasks):
-        scenario = SucceedingTask()
+    def _generate_scenario(num_tasks, task_type=SucceedingTask):
+        scenario = task_type()
         for _ in xrange(num_tasks - 1):
-            scenario = scenario >> SucceedingTask()
+            scenario = scenario >> task_type()
         return scenario
 
 

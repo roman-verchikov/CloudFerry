@@ -11,13 +11,12 @@
 # implied.
 # See the License for the specific language governing permissions and#
 # limitations under the License.
-
-
 import importlib
 import multiprocessing
 
 from cloudferrylib.scheduler.namespace import Namespace, CHILDREN
 from cloudferrylib.scheduler import state
+from cloudferrylib.scheduler import task
 from cloudferrylib.utils import utils
 from cursor import Cursor
 from task import BaseTask
@@ -71,6 +70,7 @@ class BaseScheduler(object):
             LOG.info("Processing CHAIN %s", chain_name)
             for task in chain:
                 try:
+                    task.type = chain_name
                     self.run_task(task)
                 except Exception as e:
                     self.status_error = ERROR
@@ -83,13 +83,13 @@ class BaseScheduler(object):
 
     def start(self):
         # try to prepare for migration
-        self.process_chain(self.preparation, "PREPARATION")
+        self.process_chain(self.preparation, task.TASK_TYPE_PREPARATION)
         # if we didn't get error during preparation task - process migration
         if self.status_error != ERROR:
-            self.process_chain(self.migration, "MIGRATION")
+            self.process_chain(self.migration, task.TASK_TYPE_MIGRATION)
             # if we had an error during process migration - rollback
             if self.status_error == ERROR:
-                self.process_chain(self.rollback, "ROLLBACK")
+                self.process_chain(self.rollback, task.TASK_TYPE_ROLLBACK)
 
     def task_run(self, task):
         task(namespace=self.namespace)
@@ -166,31 +166,42 @@ class Scheduler(SchedulerThread):
 
 
 class StateAwareScheduler(Scheduler, state.SignalHandler):
-    def __init__(self, redis=None, **kwargs):
-        super(StateAwareScheduler, self).__init__(**kwargs)
+    def __init__(self, redis=None, *args, **kwargs):
+        super(StateAwareScheduler, self).__init__(*args, **kwargs)
         task_observer = state.TaskStateObserver(redis)
-        task_observer.db.build_schedule(kwargs['migration'])
+        task_observer.db.build_schedule(kwargs['migration'], self.namespace)
         self.db = task_observer.db
         self.add_observer(task_observer)
 
-    def event_start_task(self, task):
-        super(StateAwareScheduler, self).event_start_task(task)
+    def event_start_task(self, t):
+        start_status = super(StateAwareScheduler, self).event_start_task(t)
 
-        if self.db.already_started(task):
+        if t.type != task.TASK_TYPE_MIGRATION:
+            return start_status
+
+        if self.db.already_started(t):
             return False
-        self.notify_observers(task, state.TASK_STARTED)
+        self.notify_observers(t, state.TASK_STARTED, self.namespace)
         return True
 
-    def event_end_task(self, task):
-        super(StateAwareScheduler, self).event_end_task(task)
-        if self.db.already_started(task):
+    def event_end_task(self, t):
+        end_succeeded = super(StateAwareScheduler, self).event_end_task(t)
+
+        if t.type != task.TASK_TYPE_MIGRATION:
+            return end_succeeded
+
+        if self.db.already_started(t):
             return False
-        self.notify_observers(task, state.TASK_SUCCEEDED)
+        self.notify_observers(t, state.TASK_SUCCEEDED)
         return True
 
-    def error_task(self, task, error):
-        super(StateAwareScheduler, self).error_task(task, error)
-        self.notify_observers(task, state.TASK_FAILED)
+    def error_task(self, t, error):
+        task_succeeded = super(StateAwareScheduler, self).error_task(t, error)
+
+        if t.type != task.TASK_TYPE_MIGRATION:
+            return task_succeeded
+
+        self.notify_observers(t, state.TASK_FAILED)
         return True
 
 

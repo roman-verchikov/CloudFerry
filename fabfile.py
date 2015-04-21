@@ -134,7 +134,13 @@ def state_restart_from_task(task_id, config=None):
     cfglib.init_config(config)
     try:
         task_id = int(task_id)
-        state.TaskStatePersistent().reset(task_id)
+        persistent = state.TaskStatePersistent()
+        current_task = persistent.get_current_task()
+        if current_task['id'] < task_id:
+            LOG.warning("You're trying to start scenario from a task which "
+                        "has never been executed! Arguments as well as "
+                        "behavior for it is NOT DEFINED!")
+        persistent.reset(task_id)
         LOG.info("The scenario will be restarted from {task} upon next "
                  "migrate. Use 'fab migrate' to restart.".format(task=task_id))
     except ValueError:

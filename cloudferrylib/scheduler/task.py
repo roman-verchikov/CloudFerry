@@ -19,6 +19,18 @@ from cloudferrylib.scheduler.utils.equ_instance import EquInstance
 START = 0
 END = 0
 
+# Preparation tasks are executed prior to resources or VM migration
+# Mainly these tasks are used to check if source and destination clouds have
+# everything required for successful migration
+TASK_TYPE_PREPARATION = "PREPARATION"
+
+# Migration tasks are those which are related to the actual resources and VM
+# migration
+TASK_TYPE_MIGRATION = "MIGRATION"
+
+# Rollback tasks are executed in case migration failed
+TASK_TYPE_ROLLBACK = "ROLLBACK"
+
 
 class Element(object):
     def __init__(self):
@@ -87,6 +99,10 @@ class BaseTask(AltSyntax, EquInstance):
 
     def __init__(self):
         self.class_name = BaseTask.__name__
+
+        # assume task is migration by default
+        # attribute is automatically set by scheduler based on scenario
+        self.type = TASK_TYPE_MIGRATION
         super(BaseTask, self).__init__()
 
     def run(self, **kwargs):

@@ -15,8 +15,8 @@
 import datetime
 import itertools
 import signal
-
 import prettytable
+import pickle
 
 from cloudferrylib.utils import utils
 from cloudferrylib.scheduler import observers
@@ -33,16 +33,61 @@ TASK_INTERRUPTED = "interrupted"
 TASKS_DB_KEY = "tasks"
 
 
+class Serializer(object):
+    @classmethod
+    def is_serializable(cls, obj):
+        try:
+            pickle.dumps(obj)
+        except (pickle.PicklingError, RuntimeError) as e:
+            LOG.warning("Unable to serialize object: %s", e)
+            return False
+        return True
+
+    @classmethod
+    def serialize(cls, obj):
+        try:
+            return pickle.dumps(obj)
+        except (pickle.PicklingError, RuntimeError) as e:
+            LOG.warning("Task namespace serialization failed: %s! All the "
+                        "consecutive attempts to restart from this task "
+                        "may fail due to invalid namespace", e)
+            return pickle.dumps(None)
+
+    @classmethod
+    def deserialize(cls, string):
+        try:
+            return pickle.loads(string)
+        except RuntimeError as e:
+            LOG.warning("Namespace deserialization failed with %s. Attempts "
+                        "to restart from this task may fail due to invalid "
+                        "namespace.", e)
+
+    @classmethod
+    def remove_nonserializable_items(cls, namespace):
+        """OS2OS inserts non-serializable objects to namespace which do not
+        impact the migration process under '__init_task__' key. This method
+        makes sure those objects never get into the DB"""
+        if namespace:
+            if hasattr(namespace, 'vars'):
+                return {k: v for k, v in namespace.vars.items()
+                        if cls.is_serializable(v)}
+            elif isinstance(namespace, dict):
+                return {k: v for k, v in namespace.items()
+                        if cls.is_serializable(v)}
+
+
 class TaskState(dict):
     def __init__(self, task=None, sequence=None, state=TASK_NOT_STARTED,
-                 **kwargs):
+                 namespace=None, timestamp=None, **kwargs):
         super(TaskState, self).__init__(**kwargs)
+
         self.update({
             'key': task_key(sequence),
             'state': state,
             'id': int(sequence),
             'name': str(task),
-            'timestamp': str(datetime.datetime.now())
+            'namespace': Serializer.remove_nonserializable_items(namespace),
+            'timestamp': timestamp
         })
 
     def __eq__(self, other):
@@ -55,18 +100,27 @@ class TaskState(dict):
 
     @classmethod
     def from_dict(cls, d):
-        return cls(task=d['name'], sequence=d['id'], state=d['state'])
+        return cls(task=d.get('name'),
+                   sequence=d.get('id', -1),
+                   state=d.get('state', TASK_NOT_STARTED),
+                   namespace=d.get('namespace'),
+                   timestamp=d.get('timestamp', datetime.datetime.now()))
+
+    @classmethod
+    def from_db_record(cls, db_record):
+        ns = db_record.get('namespace')
+        if ns:
+            db_record['namespace'] = Serializer.deserialize(ns)
+        return cls.from_dict(db_record)
+
+    def to_db_record(self):
+        ns = self.get('namespace')
+        self.update({'namespace': Serializer.serialize(ns)})
+        return self
 
 
 def task_key(sequence):
     return ':'.join([TASKS_DB_KEY, str(sequence)])
-
-
-def task_data(task, sequence, state=TASK_NOT_STARTED):
-    """
-    DB representation of task state
-    """
-    return TaskState(task, sequence, state)
 
 
 class TaskStateObserver(object):
@@ -77,14 +131,14 @@ class TaskStateObserver(object):
             redis = data_storage.get_connection()
         self.db = TaskStatePersistent(redis=redis)
 
-    def notify(self, task, task_state):
+    def notify(self, task, task_state, namespace):
         """
         Task state notification handler. Handles scheduler-initiated events.
         """
         if task_state == TASK_STARTED:
-            self.db.task_started(task, task_state)
+            self.db.task_started(task, task_state, namespace)
         else:
-            self.db.update_current_tasks_state(task_state)
+            self.db.update_current_task_state(task_state)
 
 
 class TaskStatePersistent(object):
@@ -106,7 +160,8 @@ class TaskStatePersistent(object):
                                 TASK_SUCCEEDED,
                                 TASK_INTERRUPTED),
                 'name': <task_name>,
-                'timestamp': <timestamp>
+                'timestamp': <timestamp>,
+                'namespace': <pickled task arguments (namespace)>
             }
      2. Pointer to last executed task;
         Format:
@@ -126,25 +181,30 @@ class TaskStatePersistent(object):
             redis = data_storage.get_connection()
         self.redis = redis
 
-    def update_current_tasks_state(self, state):
+    def update_current_task_state(self, state):
         current_task = self.get_current_task()
         tk = current_task['key']
         td = current_task
         td['state'] = state
 
         pipe = self.redis.pipeline()
-        pipe.hmset(tk, td)
+        pipe.hmset(tk, td.to_db_record())
+
+        # proceed to next task only if current succeeded
         if state == TASK_SUCCEEDED:
             pipe.incr(self.CURRENT_TASK_KEY)
         pipe.execute()
 
-    def task_started(self, task, task_state):
+    def task_started(self, task, task_state, namespace):
         i = int(self.redis.get(self.CURRENT_TASK_KEY))
         tk = task_key(i)
-        td = task_data(task, i, task_state)
+        td = TaskState.from_dict({'name': str(task),
+                                  'id': i,
+                                  'namespace': namespace,
+                                  'state': task_state})
 
         def register_started_task(pipe):
-            pipe.hmset(tk, td)
+            pipe.hmset(tk, td.to_db_record())
 
         self.redis.transaction(register_started_task, self.CURRENT_TASK_KEY)
 
@@ -155,7 +215,7 @@ class TaskStatePersistent(object):
             num_tasks = self.redis.llen(self.TASKS)
             all_tasks_finished = num_tasks <= int(current_task)
             if not all_tasks_finished:
-                return TaskState.from_dict(
+                return TaskState.from_db_record(
                     self.redis.hgetall(task_key(current_task)))
 
     def get_history(self):
@@ -164,7 +224,7 @@ class TaskStatePersistent(object):
         for task_id in all_task_ids:
             pipe.hgetall(task_id)
         history = pipe.execute()
-        return map(TaskState.from_dict, history)
+        return [TaskState.from_db_record(task) for task in history]
 
     def reset(self, task_id):
         """Changes state of :task_id and all the following to not started"""
@@ -173,8 +233,8 @@ class TaskStatePersistent(object):
         self.redis.set(self.CURRENT_TASK_KEY, task_id)
 
     def cleanup(self):
-        """Removes all state-related data from persistent storage. In other words,
-        CloudFerry 'forgets' all the tasks it executed previously."""
+        """Removes all state-related data from persistent storage. In other
+        words, CloudFerry 'forgets' all the tasks it executed previously."""
         all_tasks = self.get_history()
 
         self.redis.delete(all_tasks, self.TASKS, self.CURRENT_TASK_KEY)
@@ -184,7 +244,7 @@ class TaskStatePersistent(object):
         return self.redis.hget(task_id, 'state') not in [TASK_NOT_STARTED,
                                                          None]
 
-    def build_schedule(self, migration):
+    def build_schedule(self, migration, namespace):
         """
         Fills DB with scenario information on start following the algorithm
         below:
@@ -194,9 +254,11 @@ class TaskStatePersistent(object):
             write new scenario to DB
         else:
             fast forward scenario to CURRENT_STATE
+            update namespace with values from previous run
         """
         history = self.get_history()
-        new_scenario = [task_data(task, i) for i, task in enumerate(migration)]
+        new_scenario = [TaskState.from_dict({'name': str(task), 'id': i})
+                        for i, task in enumerate(migration)]
 
         scenario_changed = (len(history) == 0 or len(new_scenario) == 0 or
                             len(history) != len(new_scenario) or
@@ -211,14 +273,19 @@ class TaskStatePersistent(object):
             pipe.set(self.CURRENT_TASK_KEY, 0)
             for i, task in enumerate(migration):
                 tk = task_key(i)
-                td = task_data(task, i, TASK_NOT_STARTED)
-                pipe.hmset(tk, td)
+                td = TaskState.from_dict({'name': str(task), 'id': i})
+                pipe.hmset(tk, td.to_db_record())
                 pipe.rpush(self.TASKS, tk)
             pipe.execute()
             migration.to_start()
         else:
-            current_task = int(self.redis.get(self.CURRENT_TASK_KEY))
-            migration.fast_forward_to(current_task)
+            current_task_id = int(self.redis.get(self.CURRENT_TASK_KEY))
+            migration.fast_forward_to(current_task_id)
+            current_task = TaskState.from_db_record(
+                self.redis.hgetall(task_key(current_task_id)))
+            current_task_ns = current_task['namespace']
+            if current_task and hasattr(namespace, 'vars') and current_task_ns:
+                namespace.vars.update(current_task_ns)
 
 
 class SignalHandler(observers.Observable):

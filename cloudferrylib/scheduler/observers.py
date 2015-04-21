@@ -27,6 +27,6 @@ class Observable(object):
         if observer in self.observers:
             self.observers.remove(observer)
 
-    def notify_observers(self, task, state):
+    def notify_observers(self, task, state, namespace=None):
         for observer in self.observers:
-            observer.notify(task, state)
+            observer.notify(task, state, namespace)
