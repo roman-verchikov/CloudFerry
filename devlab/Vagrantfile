@@ -99,9 +99,11 @@ Vagrant.configure(2) do |config|
               args: [ "--branch", "#{nodedata['devstack']['branch']}" ]
           end
           thisnode.vm.provision "shell", path: "./provision/libvirt.sh"
-          if nodename == "grizzly" then
+          if nodename.start_with? "grizzly" then
             thisnode.vm.provision "shell", path: "./provision/qemu.sh"
-          elsif nodename == "icehouse" then
+            thisnode.vm.provision "shell", path: "./provision/endpoints.sh",
+              args: [ nodedata["ip"] ]
+          elsif nodename.start_with? "icehouse" then
             thisnode.vm.provision "shell", path: "./provision/cleanup_nova_instances.sh"
           end
         when "dev"
@@ -123,10 +125,10 @@ Vagrant.configure(2) do |config|
           thisnode.vm.provision "shell",
             path: "./provision/pythoncrypto.sh"
           thisnode.vm.provision "file",
-            source: "./provision/cf_keys/id_rsa", 
+            source: "./provision/cf_keys/id_rsa",
             destination: "/home/vagrant/.ssh/id_rsa" unless not File.exist?("provision/cf_keys/id_rsa")
           thisnode.vm.provision "file",
-            source: "./provision/cf_keys/id_rsa.pub", 
+            source: "./provision/cf_keys/id_rsa.pub",
             destination: "/home/vagrant/.ssh/id_rsa.pub" unless not File.exist?("provision/cf_keys/id_rsa.pub")
       end
 

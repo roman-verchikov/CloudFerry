@@ -27,9 +27,6 @@ class Prerequisites(object):
         self.password = os.environ['%s_OS_PASSWORD' % cloud_prefix]
         self.tenant = os.environ['%s_OS_TENANT_NAME' % cloud_prefix]
         self.auth_url = os.environ['%s_OS_AUTH_URL' % cloud_prefix]
-        self.image_endpoint = os.environ['%s_OS_IMAGE_ENDPOINT' % cloud_prefix]
-        self.neutron_endpoint = os.environ['%s_OS_NEUTRON_ENDPOINT'
-                                           % cloud_prefix]
 
         self.keystoneclient = keystone.Client(auth_url=self.auth_url,
                                               username=self.username,
@@ -44,6 +41,8 @@ class Prerequisites(object):
                                       project_id=self.tenant,
                                       auth_url=self.auth_url)
 
+        self.image_endpoint = self._get_endpoint('image')
+        self.neutron_endpoint = self._get_endpoint('network')
         self.glanceclient = glance(GLANCE_CLIENT_VERSION,
                                    endpoint=self.image_endpoint,
                                    token=self.token)
@@ -57,6 +56,11 @@ class Prerequisites(object):
                                           self.auth_url)
         # will be filled during create all networking step
         self.ext_net_id = None
+
+    def _get_endpoint(self, ep_type):
+        service = self.keystoneclient.services.find(type=ep_type)
+        endpoint = self.keystoneclient.endpoints.find(service_id=service.id)
+        return endpoint.publicurl
 
     def get_tenant_id(self, tenant_name):
         tenants = self.keystoneclient.tenants.list()
