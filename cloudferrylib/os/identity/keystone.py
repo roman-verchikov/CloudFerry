@@ -155,22 +155,7 @@ class KeystoneIdentity(identity.Identity):
         user_list = self.get_users_list()
         for user in user_list:
             usr = self.convert(user, self.config)
-            try:
-                self.keystone_client.tenants.find(id=user.tenantId)
-                info['users'].append(usr)
-            except keystone_client.exceptions.NotFound:
-                LOG.info("User's '%s' primary tenant '%s' is deleted, "
-                         "finding out if user is a member of other tenants",
-                         user.name, user.tenantId)
-                for t in tenant_list:
-                    roles = self.keystone_client.roles.roles_for_user(
-                        user.id, t.id)
-                    if roles:
-                        LOG.info("Setting tenant '%s' for user '%s' as "
-                                 "primary", t.name, user.name)
-                        usr['user']['tenantId'] = t.id
-                        info['users'].append(usr)
-                        break
+            info['users'].append(usr)
 
         for role in self.get_roles_list():
             rl = self.convert(role, self.config)
@@ -409,7 +394,9 @@ class KeystoneIdentity(identity.Identity):
             if not self.config.migrate.migrate_users:
                 continue
 
-            tenant_id = tenant_mapped_ids[user['tenantId']]
+            tenant_id = None
+            if user.get('tenantId'):
+                tenant_id = tenant_mapped_ids[user['tenantId']]
             _user['meta']['new_id'] = self.create_user(user['name'], password,
                                                        user['email'],
                                                        tenant_id).id

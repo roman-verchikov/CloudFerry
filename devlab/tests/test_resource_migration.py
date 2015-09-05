@@ -5,8 +5,6 @@ import unittest
 import subprocess
 import functional_test
 
-from keystoneclient.exceptions import NotFound
-
 from time import sleep
 
 
@@ -53,14 +51,7 @@ class ResourceMigrationTests(functional_test.FunctionalTest):
                 self.fail(msg.format(res=resource_name, r_name=i['name']))
 
     def test_migrate_keystone_users(self):
-        src_users = []
-        for u in self.filter_users():
-            try:
-                self.src_cloud.keystoneclient.tenants.find(id=u.tenantId)
-                src_users.append(u)
-            except NotFound:
-                pass
-        src_users = self.filter_users()
+        src_users = self.filter_resources('users')
         dst_users = self.dst_cloud.keystoneclient.users.list()
 
         self.validate_resource_parameter_in_dst(src_users, dst_users,
