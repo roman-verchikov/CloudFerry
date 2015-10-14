@@ -308,7 +308,7 @@ class KeystoneIdentity(identity.Identity):
                 image_owners.add(image.owner)
             image_owners -= {self.filter_tenant_id}
             for owner in image_owners:
-                result.append(ks_tenants.find(id=owner))
+                result.append(self.try_get_tenant_by_id(owner))
         else:
             result = ks_tenants.list()
         return result
@@ -668,6 +668,16 @@ class KeystoneIdentity(identity.Identity):
                 pika.ConnectionParameters(host=host.strip(),
                                           port=int(port),
                                           credentials=credentials))
+
+    def try_get_tenant_by_id(self, tenant_id, default_tenant_id=None):
+        try:
+            return self.keystone_client.tenants.find(id=tenant_id)
+        except ks_exceptions.NotFound:
+            if default_tenant_id is None:
+                return self.keystone_client.tenants.find(
+                    name=self.config.cloud.tenant)
+            else:
+                return self.keystone_client.tenants.find(id=default_tenant_id)
 
 
 def get_dst_user_from_src_user_id(src_keystone, dst_keystone, src_user_id,
