@@ -55,8 +55,7 @@ def migrate(name_config=None, debug=False):
     env.key_filename = cfglib.CONF.migrate.key_filename
     env.connection_attempts = cfglib.CONF.migrate.ssh_connection_attempts
     cloud = cloud_ferry.CloudFerry(cfglib.CONF)
-    cloud.migrate(Scenario(path_scenario=cfglib.CONF.migrate.scenario,
-                           path_tasks=cfglib.CONF.migrate.tasks_mapping))
+    cloud.migrate(Scenario(path_scenario=cfglib.CONF.migrate.scenario, path_tasks=cfglib.CONF.migrate.tasks_mapping))
 
 
 @task
@@ -201,6 +200,9 @@ def create_filters(name_config=None, filter_folder=DEFAULT_FILTERS_FILES,
     cfglib.init_config(name_config)
     make_filters.make(filter_folder, images_date)
 
+def fail_pep8():
+    var = undefined_variable
+    pass
 
 if __name__ == '__main__':
     migrate(None)
