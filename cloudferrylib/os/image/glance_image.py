@@ -29,6 +29,7 @@ from keystoneclient import exceptions as keystone_exceptions
 
 from cloudferrylib.base import exception
 from cloudferrylib.base import image
+from cloudferrylib.os.identity import keystone
 from cloudferrylib.utils import filters
 from cloudferrylib.os.image import filters as glance_filters
 from cloudferrylib.utils import file_like_proxy
@@ -109,9 +110,16 @@ class GlanceImage(image.Image):
         filtering_enabled = self.cloud.position == 'src'
 
         if filtering_enabled:
-            for f in self.get_image_filter().get_filters():
-                images = ifilter(f, images)
-            images = [i for i in images]
+            ks_client = self.identity_client.keystone_client
+            user = self.config.cloud.user
+            tenant = self.config.cloud.tenant
+
+            with keystone.AddAdminUserToNonAdminTenant(keystone=ks_client,
+                                                       admin_user=user,
+                                                       tenant=tenant):
+                for f in self.get_image_filter().get_filters():
+                    images = ifilter(f, images)
+                images = [i for i in images]
 
             LOG.info("Filtered images: %s",
                      ", ".join((str(i.name) for i in images)))

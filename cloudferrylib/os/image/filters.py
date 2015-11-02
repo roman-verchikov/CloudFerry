@@ -39,6 +39,7 @@ Images filtering logic:
 """
 import datetime
 
+from cloudferrylib.os.identity import keystone
 from cloudferrylib.utils import filters
 
 
