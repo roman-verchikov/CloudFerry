@@ -28,3 +28,4 @@ preparation:
           - check_dst_sql: True
           - check_dst_rabbit: True
       - check_networks: True
+  - check_needed_compute_resources: True
