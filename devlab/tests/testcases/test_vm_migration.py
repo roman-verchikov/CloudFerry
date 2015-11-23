@@ -121,3 +121,15 @@ class VmMigration(FunctionalTest):
         for src_vm, vm_index in zip(src_vms, self.dst_vm_indexes):
             self.assertTrue(src_vm.image.id ==
                             self.dst_vms[vm_index].image.id)
+
+    def test_vms_with_same_ip_did_not_migrate(self):
+        vm_addrs = []
+        for vm in self.dst_vms:
+            for net in vm.addresses:
+                vm_addrs.extend([(net, ip['addr']) for ip in vm.addresses[net]
+                                 if ip['OS-EXT-IPS:type'] == 'fixed'])
+        duplicates = {vm for vm in vm_addrs if vm_addrs.count(vm) > 1}
+        if duplicates:
+            msg = ('2 or more vms exist on dst in the same net with same ip'
+                   ' address: %s')
+            self.fail(msg % duplicates)
