@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import config
-from test_exceptions import NotFound
+import test_exceptions
 import functional_test
 
 import itertools
@@ -462,13 +462,18 @@ class ResourceMigrationTests(functional_test.FunctionalTest):
         def check_file_valid(filename):
             get_md5_cmd = 'md5sum %s' % filename
             get_old_md5_cmd = 'cat %s_md5' % filename
-            md5sum = self.migration_utils.execute_command_on_vm(
-                vm_ip, get_md5_cmd).split()[0]
-            old_md5sum = self.migration_utils.execute_command_on_vm(
-                vm_ip, get_old_md5_cmd).split()[0]
-            if md5sum != old_md5sum:
-                msg = "MD5 of file %s before and after migrate is different"
-                raise RuntimeError(msg % filename)
+            try:
+                md5sum = self.migration_utils.execute_command_on_vm(
+                    vm_ip, get_md5_cmd).split()[0]
+                old_md5sum = self.migration_utils.execute_command_on_vm(
+                    vm_ip, get_old_md5_cmd).split()[0]
+                if md5sum != old_md5sum:
+                    msg = ("File '{file}' on '{host}' VM does not match "
+                           "destination (MD5 check failure)")
+                    self.fail(msg.format(file=filename, host=vm_ip))
+            except test_exceptions.RemoteExecutionError as e:
+                self.fail("Failed getting access to file on '{host_ip}' host: "
+                          "{error}".format(vm_ip, e))
 
         volumes = config.cinder_volumes
         volumes += itertools.chain(*[tenant['cinder_volumes'] for tenant
@@ -662,7 +667,7 @@ class ResourceMigrationTests(functional_test.FunctionalTest):
             try:
                 self.dst_cloud.get_vm_id(vm)
                 migrated_vms.append(vm)
-            except NotFound:
+            except test_exceptions.NotFound:
                 pass
         if migrated_vms:
             self.fail('Not valid vms %s migrated')
@@ -676,7 +681,7 @@ class ResourceMigrationTests(functional_test.FunctionalTest):
             try:
                 self.dst_cloud.get_image_id(image)
                 migrated_images.append(image)
-            except NotFound:
+            except test_exceptions.NotFound:
                 pass
         if migrated_images:
             self.fail('Not valid images %s migrated')
