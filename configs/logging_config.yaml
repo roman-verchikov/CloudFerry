@@ -15,7 +15,7 @@ formatters:
       CRITICAL: purple
   console_colored:
     (): colorlog.ColoredFormatter
-    format: '%(log_color)s%(levelname)-8s%(reset)s %(current_task)s [%(pathname)s:%(lineno)s] %(asctime)s %(message)s'
+    format: '%(log_color)s%(levelname)-8s%(reset)s %(current_task)s %(asctime)s %(message)s'
     datefmt: '%m-%d %H:%M:%S'
     log_colors:
       DEBUG: green
