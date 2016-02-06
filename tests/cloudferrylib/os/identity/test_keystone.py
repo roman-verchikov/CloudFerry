@@ -443,7 +443,7 @@ class KeystoneClientTestCase(test.TestCase):
         config.cloud.cacert = cacert
 
         ks = keystone.KeystoneIdentity(config, cloud)
-        ks._get_client_by_creds()
+        ks.get_client()
 
         ks_client.assert_called_with(
             region_name=region,
@@ -475,7 +475,7 @@ class KeystoneClientTestCase(test.TestCase):
         config.cloud.cacert = cacert
 
         ks = keystone.KeystoneIdentity(config, cloud)
-        ks._get_client_by_creds()
+        ks.get_client()
 
         ks_client.assert_called_with(
             tenant_name=tenant,

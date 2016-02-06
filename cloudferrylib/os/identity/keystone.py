@@ -212,20 +212,7 @@ class KeystoneIdentity(identity.Identity):
         LOG.info("Done")
 
     def get_client(self):
-        """ Getting keystone client using authentication with admin auth token.
-
-        :return: OpenStack Keystone Client instance
-        """
-
-        auth_ref = self._get_client_by_creds().auth_ref
-
-        return keystone_client.Client(auth_ref=auth_ref,
-                                      endpoint=self.config.cloud.auth_url,
-                                      cacert=self.config.cloud.cacert,
-                                      insecure=self.config.cloud.insecure)
-
-    def _get_client_by_creds(self):
-        """Authenticating with a user name and password.
+        """ Getting keystone client using authentication with user/password.
 
         :return: OpenStack Keystone Client instance
         """
