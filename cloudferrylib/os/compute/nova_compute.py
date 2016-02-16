@@ -24,6 +24,7 @@ from novaclient import exceptions as nova_exc
 
 from cloudferrylib.base import compute
 from cloudferrylib.base import exception
+from cloudferrylib.os.compute import availability_zones
 from cloudferrylib.os.compute import instances
 from cloudferrylib.os.compute import instance_info_caches
 from cloudferrylib.os.compute import cold_evacuate
@@ -132,6 +133,9 @@ class NovaCompute(compute.Compute):
         self._failed_instances = []
         self.instance_info_caches = instance_info_caches.InstanceInfoCaches(
             self.get_db_connection())
+        azm = availability_zones.AvailabilityZoneMapper
+        self.az_mapper = azm.from_filename(
+            self.nova_client, self.config.migrate.availability_zone_map_file)
 
     @property
     def nova_client(self):
@@ -667,11 +671,14 @@ class NovaCompute(compute.Compute):
             instance = _instance['instance']
             with self._ensure_instance_flavor_exists(instance):
                 LOG.debug("creating instance %s", instance['name'])
+                az = self.az_mapper.get_availability_zone(
+                    instance['availability_zone'])
                 create_params = {'name': instance['name'],
                                  'flavor': instance['flavor_id'],
                                  'key_name': instance['key_name'],
                                  'nics': instance['nics'],
                                  'image': instance['image_id'],
+                                 'availability_zone': az,
                                  # user_id matches user_id on source
                                  'user_id': instance.get('user_id')}
                 if instance['boot_mode'] == utl.BOOT_FROM_VOLUME:
@@ -979,13 +986,7 @@ class NovaCompute(compute.Compute):
         return self.nova_client.hypervisors.statistics()
 
     def get_availability_zone(self, availability_zone):
-        try:
-            self.nova_client.availability_zones.find(
-                    zoneName=availability_zone)
-        except nova_exc.NotFound:
-            availability_zone = \
-                self.config.migrate.default_availability_zone
-        return availability_zone
+        return self.az_mapper.get_availability_zone(availability_zone)
 
     def get_compute_hosts(self, availability_zone=None):
         hosts = self.nova_client.hosts.list(zone=availability_zone)

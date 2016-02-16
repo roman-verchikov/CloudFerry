@@ -176,9 +176,6 @@ migrate_opts = [
     cfg.IntOpt('boot_timeout', default=300,
                help="Timeout booting of instance"),
     cfg.StrOpt('ssh_cipher', default=None, help='SSH cipher to use for SCP'),
-    cfg.StrOpt('default_availability_zone', default="nova",
-               help="Availability zone to use for VM provisioning, in case "
-                    "source cloud zones do not match destination"),
     cfg.StrOpt('ephemeral_copy_backend', default="rsync",
                help="Allows to choose how ephemeral storage is copied over "
                     "from source to destination. Possible values: 'rsync' "
@@ -192,7 +189,13 @@ migrate_opts = [
     cfg.BoolOpt('keep_network_interfaces_order', default=True,
                 help="Keep the order of network interfaces of instances."),
     cfg.BoolOpt('keep_usage_quotas_inst', default=True,
-                help="Keep the usage quotas for instances.")
+                help="Keep the usage quotas for instances."),
+    cfg.StrOpt('availability_zone_map_file',
+               default='configs/availability_zone_mapping.yaml',
+               help='Allows specifying map between source and destination '
+                    'availability zones. Mapping is used to provision objects '
+                    'in correct availability zones in case source cloud zones '
+                    'are not present in destination.'),
 ]
 
 mail = cfg.OptGroup(name='mail',

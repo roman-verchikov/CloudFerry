@@ -39,7 +39,8 @@ FAKE_CONFIG = utils.ext_dict(
                             'retry': '7',
                             'time_wait': 5,
                             'keep_network_interfaces_order': True,
-                            'keep_usage_quotas_inst': True}))
+                            'keep_usage_quotas_inst': True,
+                            'availability_zone_map_file': "no file"}))
 
 
 class BaseNovaComputeTestCase(test.TestCase):
@@ -58,8 +59,10 @@ class BaseNovaComputeTestCase(test.TestCase):
         self.fake_cloud.position = 'src'
         self.fake_cloud.config = FAKE_CONFIG
 
-        with mock.patch(
-                'cloudferrylib.os.compute.nova_compute.mysql_connector'):
+        connector = 'cloudferrylib.os.compute.nova_compute.mysql_connector'
+        az_mapper = 'cloudferrylib.os.compute.nova_compute.availability_zones'
+
+        with mock.patch(connector), mock.patch(az_mapper):
             self.nova_client = nova_compute.NovaCompute(FAKE_CONFIG,
                                                         self.fake_cloud)
 
@@ -411,7 +414,10 @@ class DeployInstanceWithManualScheduling(test.TestCase):
 
 
 class FlavorDeploymentTestCase(test.TestCase):
-    def test_flavor_is_not_created_if_already_exists_on_dest(self):
+    @mock.patch("cloudferrylib.os.compute.nova_compute.nova_client.Client")
+    @mock.patch("cloudferrylib.os.compute.nova_compute.availability_zones."
+                "AvailabilityZoneMapper")
+    def test_flavor_is_not_created_if_already_exists_on_dest(self, azm, ncl):
         existing_flavor = mock.Mock()
         existing_flavor.id = 'existing-id'
         existing_flavor.name = 'existing-name'
@@ -452,9 +458,12 @@ class FlavorDeploymentTestCase(test.TestCase):
 
         assert not nc._create_flavor_if_not_exists.called
 
+    @mock.patch("cloudferrylib.os.compute.nova_compute.nova_client.Client")
+    @mock.patch("cloudferrylib.os.compute.nova_compute.availability_zones."
+                "AvailabilityZoneMapper")
     @mock.patch('cloudferrylib.os.compute.nova_compute.NovaCompute'
                 '.create_flavor')
-    def test_access_not_updated_for_public_flavors(self, _):
+    def test_access_not_updated_for_public_flavors(self, _, azm, ncli):
         flavors = {
             'flavor1': {
                 'flavor': {
@@ -486,9 +495,12 @@ class FlavorDeploymentTestCase(test.TestCase):
 
         assert not nc._add_flavor_access_for_tenants.called
 
-    @mock.patch('cloudferrylib.os.compute.nova_compute.NovaCompute'
-                '.create_flavor')
-    def test_access_list_is_updated_for_non_public_flavors(self, _):
+    @mock.patch("cloudferrylib.os.compute.nova_compute.nova_client.Client")
+    @mock.patch("cloudferrylib.os.compute.nova_compute.availability_zones."
+                "AvailabilityZoneMapper")
+    @mock.patch('cloudferrylib.os.compute.nova_compute.NovaCompute.'
+                'create_flavor')
+    def test_access_list_is_updated_for_non_public_flavors(self, _, azm, nc):
         flavors = {
             'flavor1': {
                 'flavor': {
@@ -521,9 +533,11 @@ class FlavorDeploymentTestCase(test.TestCase):
         assert nc._add_flavor_access_for_tenants.called
 
 
+@mock.patch("cloudferrylib.os.compute.nova_compute.availability_zones."
+            "AvailabilityZoneMapper")
 @mock.patch("cloudferrylib.os.compute.nova_compute.nova_client.Client")
 class NovaClientTestCase(test.TestCase):
-    def test_adds_region_if_set_in_config(self, n_client):
+    def test_adds_region_if_set_in_config(self, n_client, _):
         cloud = mock.MagicMock()
         config = mock.MagicMock()
 
@@ -552,7 +566,7 @@ class NovaClientTestCase(test.TestCase):
                                     region_name=region, cacert=cacert,
                                     insecure=insecure)
 
-    def test_does_not_add_region_if_not_set_in_config(self, n_client):
+    def test_does_not_add_region_if_not_set_in_config(self, n_client, _):
         cloud = mock.MagicMock()
         config = mock.MagicMock()
 
