@@ -139,15 +139,6 @@ class CinderStorage(storage.Storage):
                                                 'snapshots': snapshots,
                                                 utils.META_INFO: {
                                                 }}
-        if self.config.migrate.keep_volume_storage:
-            info['volumes_db'] = {utils.VOLUMES_TYPE: '/tmp/volumes'}
-
-            # cleanup db
-            self.cloud.ssh_util.execute('rm -rf /tmp/volumes',
-                                        host_exec=self.mysql_host)
-
-            for table_name, file_name in info['volumes_db'].iteritems():
-                self.download_table_from_db_to_file(table_name, file_name)
         return info
 
     def _read_info_quota(self):
@@ -499,10 +490,6 @@ class CinderStorage(storage.Storage):
         cmd = ('UPDATE volumes SET volumes.bootable=%s WHERE '
                'volumes.id="%s"') % (int(bootable), volume_id)
         self.mysql_connector.execute(cmd)
-
-    def download_table_from_db_to_file(self, table_name, file_name):
-        self.mysql_connector.execute("SELECT * FROM %s INTO OUTFILE '%s';" %
-                                     (table_name, file_name))
 
     def upload_table_to_db(self, table_name, file_name):
         self.mysql_connector.execute("LOAD DATA INFILE '%s' INTO TABLE %s" %

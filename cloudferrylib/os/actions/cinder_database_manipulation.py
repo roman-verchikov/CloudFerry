@@ -188,7 +188,7 @@ class CopyVolumes(object):
 
     def __init__(self, cfg, src_cloud, dst_cloud):
         self.ssh_attempts = cfg.migrate.ssh_connection_attempts
-        self.key_filename = cfg.migrate.key_filename
+        self.key_filenames = cfg.migrate.key_filenames
 
         self.storage = {
             SRC: cfg.src_storage,

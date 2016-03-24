@@ -34,7 +34,7 @@ class SSHCephToCeph(base.BaseCopier):
                             self.dst_cloud.cloud_config.cloud.ssh_host)
         with api.settings(host_string=host_src,
                           connection_attempts=api.env.connection_attempts), \
-                utils.forward_agent(api.env.key_filename):
+                utils.forward_agent(api.env.key_filenames):
             rbd_import_diff = rbd_util.RbdUtil.rbd_import_diff_cmd
             ssh_cmd = cmd_cfg.ssh_cmd
             ssh_rbd_import_diff = ssh_cmd(host_dst, rbd_import_diff)

@@ -32,7 +32,7 @@ class SSHFileToCeph(base.BaseCopier):
         action_utils.delete_file_from_rbd(ssh_ip_dst, data['path_dst'])
         with api.settings(host_string=ssh_ip_src,
                           connection_attempts=api.env.connection_attempts), \
-                utils.forward_agent(api.env.key_filename):
+                utils.forward_agent(api.env.key_filenames):
             rbd_import = rbd_util.RbdUtil.rbd_import_cmd
             ssh_cmd_dst = cmd_cfg.ssh_cmd
             ssh_dst = ssh_cmd_dst(ssh_ip_dst, rbd_import)

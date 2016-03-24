@@ -93,7 +93,7 @@ class NovaNetwork(network.Network):
 
         with settings(host_string=self.config.ssh_host,
                       connection_attempts=ssh_attempts):
-            with forward_agent(env.key_filename):
+            with forward_agent(env.key_filenames):
                 cmd = "virsh dumpxml %s | grep 'mac address' | " \
                       "cut -d\\' -f2" % libvirt_name
                 out = run("ssh -oStrictHostKeyChecking=no %s %s" %

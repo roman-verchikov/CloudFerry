@@ -42,7 +42,7 @@ class SshUtil(object):
             return runner.run(str(cmd))
 
     def execute_on_inthost(self, runner, cmd, host):
-        with utils.forward_agent(self.config_migrate.key_filename):
+        with utils.forward_agent(self.config_migrate.key_filenames):
             return runner.run(str(cmd_cfg.ssh_cmd(host, str(cmd))))
 
 

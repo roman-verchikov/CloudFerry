@@ -93,7 +93,7 @@ class TransportEphemeral(action.Action):
                                       host_instance):
         with settings(host_string=host_cloud,
                       connection_attempts=env.connection_attempts):
-            with forward_agent(env.key_filename):
+            with forward_agent(env.key_filenames):
                 run("ssh -oStrictHostKeyChecking=no %s  'rm -rf %s'" %
                     (host_instance, path_file))
 

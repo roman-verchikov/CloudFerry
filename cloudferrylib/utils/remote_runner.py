@@ -34,7 +34,7 @@ class RemoteRunner(object):
                  ignore_errors=False, timeout=None, gateway=None):
         self.host = host
         if key is None:
-            key = CONF.migrate.key_filename
+            key = CONF.migrate.key_filenames
         self.user = user
         self.password = password
         self.sudo = sudo

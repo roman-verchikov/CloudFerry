@@ -62,7 +62,7 @@ class MysqlDump(action.Action):
         self.cloud.ssh_util.execute(command, host_exec=db_host)
         # copy dump file to host with cloudferry (for now just in case)
         # in future we will store snapshot for every step of migration
-        key_string = ' -i '.join(self.cloud.config.migrate.key_filename)
+        key_string = ' -i '.join(self.cloud.config.migrate.key_filenames)
 
         context = {
             'host_src': db_host,

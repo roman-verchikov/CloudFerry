@@ -33,7 +33,7 @@ class SSHFileToFile(base.BaseCopier):
         LOG.debug("| | copy file")
         ssh_ip_src = self.src_cloud.cloud_config.cloud.ssh_host
         ssh_ip_dst = self.dst_cloud.cloud_config.cloud.ssh_host
-        with utils.forward_agent(CONF.migrate.key_filename), \
+        with utils.forward_agent(CONF.migrate.key_filenames), \
                 utils.up_ssh_tunnel(data['host_dst'], ssh_ip_dst,
                                     ssh_ip_src) as port:
             if CONF.migrate.file_compression == "dd":
@@ -79,7 +79,7 @@ class SSHFileToFile(base.BaseCopier):
                          "cloudferrylib/copy_engines/.")
         with api.settings(host_string=data['host_src'],
                           connection_attempts=ssh_attempts), \
-                utils.forward_agent(CONF.migrate.key_filename):
+                utils.forward_agent(CONF.migrate.key_filenames):
             if CONF.migrate.file_compression == "dd":
                 dd_dst = cmd_cfg.dd_cmd_of
                 ssh_cmd_dst = cmd_cfg.ssh_cmd

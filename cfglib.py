@@ -14,117 +14,98 @@
 
 
 from oslo_config import cfg
+import copy
 
 
 src = cfg.OptGroup(name='src',
-                   title='Credentials and general config for source cloud')
+                   title='Source cloud configuration options')
 
 src_opts = [
-    cfg.StrOpt('type', default='os',
-               help='os - OpenStack Cloud'),
-    cfg.StrOpt('auth_url', default='-',
+    cfg.StrOpt('auth_url', default=None,
                help='Keystone service endpoint for authorization'),
-    cfg.StrOpt('host', default='-',
-               help='ip-address controller for cloud'),
+    cfg.StrOpt('host', default=None,
+               help='IP address of a cloud controller'),
     cfg.StrOpt('ssh_host', default=None,
                help='ip-address of cloud node for ssh connect'),
-    cfg.ListOpt('ext_cidr', default=[], help='external network CIDR'),
-    cfg.StrOpt('user', default='-',
-               help='user for access to API'),
-    cfg.StrOpt('password', default='-',
-               help='password for access to API'),
-    cfg.StrOpt('tenant', default='-',
-               help='tenant for access to API'),
+    cfg.ListOpt('ext_cidr', default=[],
+                help='List of CIDRs which should be used for accessing '
+                     'compute hosts. Should be used when compute nodes are '
+                     'not accessible with IP addresses their host names '
+                     'resolve to, or if certain NICs on a node are faster '
+                     'than default.'),
+    cfg.StrOpt('user', default=None,
+               help='OpenStack API user name'),
+    cfg.StrOpt('password', default=None,
+               help='OpenStack API password'),
+    cfg.StrOpt('tenant', default=None,
+               help='OpenStack API tenant name'),
     cfg.StrOpt('region', default=None,
-               help='Openstack region name'),
+               help='OpenStack API region name'),
     cfg.StrOpt('service_tenant', default='service',
                help='Tenant name for services'),
     cfg.StrOpt('ssh_user', default='root',
-               help='user to connect via ssh'),
+               help='System username to be used to connect to compute '
+                    'nodes over SSH'),
     cfg.StrOpt('ssh_sudo_password', default='',
-               help='sudo password to connect via ssh, if any'),
-    cfg.StrOpt('cacert', default='', help='SSL certificate'),
+               help='System sudo password to execute commands on compute '
+                    'nodes with root privileges. If not specified - '
+                    'CloudFerry expects paswordless sudo to be configured on '
+                    'all compute nodes'),
+    cfg.StrOpt('cacert', default='', help='OpenStack API SSL certificate'),
     cfg.BoolOpt('insecure', default=False,
-                help='Allow to access servers without checking SSL certs')
+                help='Allow insecure access to OpenStack APIs (ignore SSL '
+                     'certificate).')
 ]
 
 dst = cfg.OptGroup(name='dst',
-                   title='Credentials and general '
-                         'config for destination cloud')
+                   title='Destination cloud configuration options')
 
-dst_opts = [
-    cfg.StrOpt('type', default='os',
-               help='os - OpenStack Cloud'),
-    cfg.StrOpt('auth_url', default='-',
-               help='Keystone service endpoint for authorization'),
-    cfg.StrOpt('host', default='-',
-               help='ip-address controller for cloud'),
-    cfg.StrOpt('ssh_host', default=None,
-               help='ip-address of cloud node for ssh connect'),
-    cfg.ListOpt('ext_cidr', default=[], help='external network CIDR'),
-    cfg.StrOpt('user', default='-',
-               help='user for access to API'),
-    cfg.StrOpt('password', default='-',
-               help='password for access to API'),
-    cfg.StrOpt('tenant', default='-',
-               help='tenant for access to API'),
-    cfg.StrOpt('region', default=None,
-               help='Openstack region name'),
-    cfg.StrOpt('service_tenant', default='service',
-               help='Tenant name for services'),
-    cfg.StrOpt('ssh_user', default='root',
-               help='user to connect via ssh'),
-    cfg.StrOpt('ssh_sudo_password', default='',
-               help='sudo password to connect via ssh, if any'),
-    cfg.StrOpt('cacert', default='', help='SSL certificate'),
-    cfg.BoolOpt('insecure', default=False,
-                help='Allow to access servers without checking SSL certs')
-]
+dst_opts = copy.copy(src_opts)
 
 migrate = cfg.OptGroup(name='migrate',
-                       title='General config for migration process')
+                       title='Migration process configuration options')
 
 migrate_opts = [
     cfg.BoolOpt('keep_user_passwords', default=True,
                 help='True - keep user passwords, '
                      'False - not keep user passwords'),
-    cfg.ListOpt('key_filename', default=['id_rsa'],
-                help='private key(s) for interaction with clouds via ssh'),
+    cfg.ListOpt('key_filenames', default=['id_rsa'],
+                help='List of private key to access cloud nodes over ssh'),
     cfg.BoolOpt('keep_ip', default=False,
-                help='yes - keep ip, no - not keep ip'),
+                help='Determines whether to keep port IPs or generate new.'),
     cfg.BoolOpt('migrate_extnets', default=False,
-                help='yes - migrate external networks, '
-                     'no - do not migrate external networks'),
+                help='Determines whether migration of external (public) '
+                     'networks is required or not.'),
     cfg.StrOpt('ext_net_map', default='configs/ext_net_map.yaml',
-               help='path to the map of external networks, which contains '
-                    'references between old and new ids'),
+               help='Path to a YAML file with mapping between source and '
+                    'destination cloud external networks. Networks will be '
+                    'mapped regardless of `migrate_extnets` option value.'),
     cfg.BoolOpt('keep_floatingip', default=False,
-                help='yes - keep floatingip, no - not keep floatingip'),
+                help='Preserves floating IPs from source cloud in '
+                     'destination'),
     cfg.BoolOpt('change_router_ips', default=False,
-                help='change router external ip on dst cloud to '
-                     'avoid ip collision by making additional floatingip '
-                     'on dst as stub'),
+                help='Does not keep external router IPs if set to `True` in '
+                     'order to avoid IP collision during migration.'),
     cfg.BoolOpt('clean_router_ips_stub', default=False,
-                help='delete floating ip stub on dst after router migration'),
+                help='Deletes floating IP in destination after router '
+                     'migration. TODO (not clear why this is needed)'),
     cfg.StrOpt('router_ips_stub_tenant', default=None,
                help='tenant for creation router ip stubs, if it "None" as '
                     'default stub creates in router tenant'),
     cfg.BoolOpt('keep_lbaas', default=False,
-                help='yes - keep lbaas settings, '
-                     'no - not keep lbaas settings'),
+                help='Determines whether LBaaS objects need to be migrated'),
     cfg.BoolOpt('keep_volume_snapshots', default=False,
                 help='yes - keep volume snapshots, '
                      'no - not keep volume snapshots'),
-    cfg.BoolOpt('keep_volume_storage', default=False,
-                help='True - keep volume_storage, '
-                     'False - not keep volume_storage'),
     cfg.StrOpt('speed_limit', default='off',
-               help='speed limit for glance to glance'),
+               help='Speed limit for glance migration. Use `off` to disable. '
+                    'Can have typical K,M,G suffixes.'),
     cfg.StrOpt('file_compression', default='dd',
-               help='gzip - use GZIP when file transferring via ssh, '
-                    ' - no compression, directly via dd'),
-    cfg.IntOpt('level_compression', default='7',
-               help='level compression for gzip'),
+               help='Compression to be used to copy ephemeral storage over '
+                    'SSH, can be one of `dd` or `gzip`.'),
+    cfg.IntOpt('level_compression', default=7,
+               help='gzip compression level when `file_compression` option '
+                    'is set to `gzip`'),
     cfg.StrOpt('ssh_transfer_port', default='9990',
                help='interval ports for ssh tunnel'),
     cfg.StrOpt('port', default='9990',
@@ -649,15 +630,6 @@ dst_objstorage_opts = [
                help='database name')
 ]
 
-import_rules = cfg.OptGroup(name='import_rules',
-                            title='Import Rules for '
-                                  'overwrite something fields')
-
-import_rules_opts = [
-    cfg.StrOpt('key', default='',
-               help=''),
-]
-
 snapshot = cfg.OptGroup(name='snapshot',
                         title="Rules for snapshot")
 
@@ -753,11 +725,9 @@ cfg_for_reg = [
     (dst_network, dst_network_opts),
     (dst_objstorage, dst_objstorage_opts),
     (snapshot, snapshot_opts),
-    (import_rules, import_rules_opts),
     (initial_check, initial_check_opts),
     (condense, condense_opts),
     (database, database_opts),
-    (import_rules, import_rules_opts),
     (evacuation, evacuation_opts),
     (bbcp_group, bbcp_opts),
 ]

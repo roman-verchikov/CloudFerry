@@ -41,7 +41,6 @@ class Cloud(object):
     def make_cloud_config(config, position):
         cloud_config = utils.ext_dict(migrate=utils.ext_dict(),
                                       cloud=utils.ext_dict(),
-                                      import_rules=utils.ext_dict(),
                                       mail=utils.ext_dict(),
                                       snapshot=utils.ext_dict(),
                                       mysql=utils.ext_dict(),
@@ -51,7 +50,6 @@ class Cloud(object):
 
         cloud_config['migrate'].update(config.migrate)
         cloud_config['cloud'].update(getattr(config, position))
-        cloud_config['import_rules'].update(config.import_rules)
         cloud_config['mail'].update(config.mail)
         cloud_config['mysql'].update(getattr(config, position + '_mysql'))
         cloud_config['rabbit'].update(getattr(config, position + '_rabbit'))

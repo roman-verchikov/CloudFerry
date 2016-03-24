@@ -58,7 +58,7 @@ def migrate(name_config=None, debug=None):
         :name_config - name of config yaml-file, example 'config.yaml'
     """
     init(name_config, debug)
-    env.key_filename = cfglib.CONF.migrate.key_filename
+    env.key_filenames = cfglib.CONF.migrate.key_filenames
     env.connection_attempts = cfglib.CONF.migrate.ssh_connection_attempts
     env.cloud = cloud_ferry.CloudFerry(cfglib.CONF)
     status_error = env.cloud.migrate(Scenario(
@@ -90,7 +90,7 @@ def evacuate(name_config=None, debug=None, iteration=False):
         LOG.error("Invalid value provided as 'iteration' argument, it must be "
                   "integer")
         return
-    env.key_filename = cfglib.CONF.migrate.key_filename
+    env.key_filenames = cfglib.CONF.migrate.key_filenames
     cloud = cloud_ferry.CloudFerry(cfglib.CONF)
     LOG.info("running evacuation")
     evacuation_chain.process_chain(cloud, iteration)

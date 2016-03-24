@@ -86,7 +86,7 @@ class CheckBandwidth(action.Action):
 
         with files.RemoteDir(runner, temp_dir_name):
             try:
-                with utils.forward_agent(env.key_filename):
+                with utils.forward_agent(env.key_filenames):
                     dd_command = cmd_cfg.dd_full('/dev/zero',
                                                  remote_file_path,
                                                  1,

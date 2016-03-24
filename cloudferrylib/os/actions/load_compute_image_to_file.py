@@ -31,7 +31,7 @@ class LoadComputeImageToFile(action.Action):
 
             with settings(host_string=cfg.ssh_host,
                           connection_attempts=ssh_attempts):
-                with forward_agent(env.key_filename):
+                with forward_agent(env.key_filenames):
                     cmd = image.glance_image_download_cmd(cfg, image_id,
                                                           base_file)
                     run(cmd)
